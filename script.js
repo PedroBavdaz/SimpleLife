@@ -11,7 +11,10 @@ let simulationSpeed = 1;
 let FOOD_SPAWN_RATE = 5; // Food spawn rate in seconds
 let AGE_CONSUMPTION_MULTIPLIER = 0.001; // How much the base consumption increases per frame
 let SPEED_CONSUMPTION_RATE = 0.1; // Energy consumed per unit of speed per frame
+const FPS = 60; // Frames per second
 let REPRODUCTION_COOLDOWN = 300; // Cooldown in frames (5 seconds at 60fps)
+let MIN_HERBIVORE_SIZE = 5; // Minimum size of herbivores
+let MAX_HERBIVORE_SIZE = 15; // Maximum size of herbivores
 
 // Herbivore attributes ranges
 const SPEED_RANGE = { min: 1, max: 3 };
@@ -35,7 +38,13 @@ const speedConsumptionSlider = document.getElementById('speedConsumptionRate');
 const speedConsumptionValue = document.getElementById('speedConsumptionRateValue');
 const reproductionCooldownSlider = document.getElementById('reproductionCooldown');
 const reproductionCooldownValue = document.getElementById('reproductionCooldownValue');
+const minSizeSlider = document.getElementById('minHerbivoreSize');
+const minSizeValue = document.getElementById('minHerbivoreSizeValue');
+const maxSizeSlider = document.getElementById('maxHerbivoreSize');
+const maxSizeValue = document.getElementById('maxHerbivoreSizeValue');
 const resetButton = document.getElementById('resetButton');
+const controlPanel = document.getElementById('controlPanel');
+const toggleButton = document.querySelector('.toggle-button');
 
 // Stats window elements
 const statsWindow = document.getElementById('statsWindow');
@@ -171,10 +180,11 @@ class Herbivore {
             if (otherHerbivore === this || !otherHerbivore.isAlive) continue;
 
             const distance = calculateDistance(this.x, this.y, otherHerbivore.x, otherHerbivore.y);
-            if (distance < MIN_HERBIVORE_DISTANCE) {
+            const minDistance = this.radius + otherHerbivore.radius;
+            if (distance < minDistance) {
                 // Calculate collision response
                 const angle = Math.atan2(otherHerbivore.y - this.y, otherHerbivore.x - this.x);
-                const overlap = MIN_HERBIVORE_DISTANCE - distance;
+                const overlap = minDistance - distance;
                 
                 // Move both herbivores apart
                 const moveX = Math.cos(angle) * overlap * 0.5;
@@ -328,6 +338,10 @@ class Herbivore {
     draw() {
         if (!this.isAlive) return;
 
+        // Calculate size based on energy level
+        const energyRatio = this.energy / this.maxEnergy;
+        this.radius = MIN_HERBIVORE_SIZE + (MAX_HERBIVORE_SIZE - MIN_HERBIVORE_SIZE) * energyRatio;
+
         // Calculate color based on base speed attribute
         // Map from green (min speed) to red (max speed)
         const speedRatio = (this.speed - SPEED_RANGE.min) / (SPEED_RANGE.max - SPEED_RANGE.min);
@@ -451,12 +465,41 @@ speedConsumptionSlider.addEventListener('input', (e) => {
 });
 
 reproductionCooldownSlider.addEventListener('input', (e) => {
-    REPRODUCTION_COOLDOWN = parseInt(e.target.value);
-    reproductionCooldownValue.textContent = (REPRODUCTION_COOLDOWN / 60).toFixed(1);
+    const seconds = parseFloat(e.target.value);
+    REPRODUCTION_COOLDOWN = Math.round(seconds * FPS); // Convert seconds to frames
+    reproductionCooldownValue.textContent = seconds.toFixed(1);
+});
+
+minSizeSlider.addEventListener('input', (e) => {
+    MIN_HERBIVORE_SIZE = parseInt(e.target.value);
+    minSizeValue.textContent = MIN_HERBIVORE_SIZE;
+    // Ensure max size is always greater than min size
+    if (MAX_HERBIVORE_SIZE <= MIN_HERBIVORE_SIZE) {
+        MAX_HERBIVORE_SIZE = MIN_HERBIVORE_SIZE + 1;
+        maxSizeSlider.value = MAX_HERBIVORE_SIZE;
+        maxSizeValue.textContent = MAX_HERBIVORE_SIZE;
+    }
+});
+
+maxSizeSlider.addEventListener('input', (e) => {
+    MAX_HERBIVORE_SIZE = parseInt(e.target.value);
+    maxSizeValue.textContent = MAX_HERBIVORE_SIZE;
+    // Ensure min size is always less than max size
+    if (MIN_HERBIVORE_SIZE >= MAX_HERBIVORE_SIZE) {
+        MIN_HERBIVORE_SIZE = MAX_HERBIVORE_SIZE - 1;
+        minSizeSlider.value = MIN_HERBIVORE_SIZE;
+        minSizeValue.textContent = MIN_HERBIVORE_SIZE;
+    }
 });
 
 resetButton.addEventListener('click', () => {
     initializeSimulation();
+});
+
+// Toggle control panel
+toggleButton.addEventListener('click', () => {
+    controlPanel.classList.toggle('collapsed');
+    toggleButton.textContent = controlPanel.classList.contains('collapsed') ? '▶' : '▼';
 });
 
 // Initial simulation setup

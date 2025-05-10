@@ -22,6 +22,35 @@
         border-radius: 5px;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
         font-family: Arial, sans-serif;
+        transition: all 0.3s ease;
+      }
+      #controlPanel.collapsed {
+        width: 200px;
+      }
+      #controlPanel.collapsed .control-group,
+      #controlPanel.collapsed .control {
+        display: none;
+      }
+      .control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        margin-bottom: 10px;
+      }
+      .control-header h3 {
+        margin: 0;
+      }
+      .toggle-button {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0;
+        color: #666;
+      }
+      .toggle-button:hover {
+        color: #000;
       }
       .control-group {
         margin-bottom: 10px;
@@ -75,7 +104,10 @@
   <body>
     <canvas id="simulationCanvas"></canvas>
     <div id="controlPanel">
-      <h3>Controls</h3>
+      <div class="control-header">
+        <h3>Controls</h3>
+        <button class="toggle-button">▼</button>
+      </div>
       <div class="control">
         <label for="herbivoreAmount">Herbivores:</label>
         <input type="range" id="herbivoreAmount" min="1" max="20" value="5" />
@@ -134,17 +166,20 @@
         />
         <span id="speedConsumptionRateValue">0.10</span>
       </div>
-      <div class="control">
-        <label for="reproductionCooldown">Breeding Cooldown (seconds):</label>
-        <input
-          type="range"
-          id="reproductionCooldown"
-          min="60"
-          max="600"
-          step="60"
-          value="300"
-        />
+      <div class="control-group">
+        <label for="reproductionCooldown">Reproduction Cooldown (seconds):</label>
+        <input type="range" id="reproductionCooldown" min="1" max="10" value="5" step="0.1">
         <span id="reproductionCooldownValue">5.0</span>
+      </div>
+      <div class="control-group">
+        <label for="minHerbivoreSize">Minimum Herbivore Size:</label>
+        <input type="range" id="minHerbivoreSize" min="3" max="20" value="5" step="1">
+        <span id="minHerbivoreSizeValue">5</span>
+      </div>
+      <div class="control-group">
+        <label for="maxHerbivoreSize">Maximum Herbivore Size:</label>
+        <input type="range" id="maxHerbivoreSize" min="5" max="30" value="15" step="1">
+        <span id="maxHerbivoreSizeValue">15</span>
       </div>
       <button id="resetButton">Reset Simulation</button>
     </div>
