@@ -8,12 +8,17 @@ let FOOD_AMOUNT = 10;
 const MIN_HERBIVORE_DISTANCE = 20; // Minimum distance between herbivores
 const BASE_EATING_TIME = 1000; // Base time in milliseconds to eat food (1 second)
 let simulationSpeed = 1;
+let FOOD_SPAWN_RATE = 5; // Food spawn rate in seconds
+let AGE_CONSUMPTION_MULTIPLIER = 0.001; // How much the base consumption increases per frame
+let SPEED_CONSUMPTION_RATE = 0.1; // Energy consumed per unit of speed per frame
+let REPRODUCTION_COOLDOWN = 300; // Cooldown in frames (5 seconds at 60fps)
 
 // Herbivore attributes ranges
 const SPEED_RANGE = { min: 1, max: 3 };
 const ENERGY_RANGE = { min: 50, max: 100 };
 const ENERGY_CONSUMPTION_RATE = 0.1; // Energy consumed per unit of speed per frame
-const ENERGY_RECHARGE = 50; // Energy gained from eating food
+const BASE_ENERGY_CONSUMPTION = 0.05; // Base energy consumed per frame even when not moving
+const ENERGY_RECHARGE = 30; // Energy gained from eating food (reduced from 50)
 
 // Control panel elements
 const herbivoreSlider = document.getElementById('herbivoreAmount');
@@ -22,7 +27,27 @@ const foodSlider = document.getElementById('foodAmount');
 const foodValue = document.getElementById('foodAmountValue');
 const speedSlider = document.getElementById('simulationSpeed');
 const speedValue = document.getElementById('simulationSpeedValue');
+const foodSpawnSlider = document.getElementById('foodSpawnRate');
+const foodSpawnValue = document.getElementById('foodSpawnRateValue');
+const ageConsumptionSlider = document.getElementById('ageConsumptionRate');
+const ageConsumptionValue = document.getElementById('ageConsumptionRateValue');
+const speedConsumptionSlider = document.getElementById('speedConsumptionRate');
+const speedConsumptionValue = document.getElementById('speedConsumptionRateValue');
+const reproductionCooldownSlider = document.getElementById('reproductionCooldown');
+const reproductionCooldownValue = document.getElementById('reproductionCooldownValue');
 const resetButton = document.getElementById('resetButton');
+
+// Stats window elements
+const statsWindow = document.getElementById('statsWindow');
+const statsContent = document.getElementById('statsContent');
+const closeStatsButton = document.getElementById('closeStatsButton');
+
+// Track currently selected herbivore
+let selectedHerbivore = null;
+
+// Food spawn timer
+let lastFoodSpawnTime = Date.now();
+let pendingFoodSpawns = 0;
 
 // Set canvas size to match window size
 function resizeCanvas() {
@@ -67,11 +92,11 @@ class Food {
 
 // Herbivore class
 class Herbivore {
-    constructor(x, y) {
+    constructor(x, y, speed = null) {
         this.x = x;
         this.y = y;
         this.radius = 10; // Size of the herbivore
-        this.speed = getRandomInRange(SPEED_RANGE.min, SPEED_RANGE.max);
+        this.speed = speed !== null ? speed : getRandomInRange(SPEED_RANGE.min, SPEED_RANGE.max);
         this.maxEnergy = getRandomInRange(ENERGY_RANGE.min, ENERGY_RANGE.max);
         this.energy = this.maxEnergy;
         this.velocityX = 0;
@@ -80,6 +105,8 @@ class Herbivore {
         this.isEating = false;
         this.eatingStartTime = 0;
         this.currentFood = null;
+        this.age = 0; // Track age in frames
+        this.reproductionCooldown = 0; // Cooldown after reproduction
     }
 
     findClosestFood(foods) {
@@ -98,6 +125,23 @@ class Herbivore {
         }
 
         return closestFood;
+    }
+
+    findClosestHerbivore(herbivores) {
+        let closestHerbivore = null;
+        let minDistance = Infinity;
+
+        for (const otherHerbivore of herbivores) {
+            if (otherHerbivore === this || !otherHerbivore.isAlive || otherHerbivore.reproductionCooldown > 0) continue;
+            
+            const distance = calculateDistance(this.x, this.y, otherHerbivore.x, otherHerbivore.y);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestHerbivore = otherHerbivore;
+            }
+        }
+
+        return closestHerbivore;
     }
 
     moveTowards(target) {
@@ -119,7 +163,7 @@ class Herbivore {
         this.velocityY = normalizedDy * this.speed;
 
         // Consume energy based on speed
-        this.energy -= this.speed * ENERGY_CONSUMPTION_RATE * simulationSpeed;
+        this.energy -= this.speed * SPEED_CONSUMPTION_RATE * simulationSpeed;
     }
 
     checkHerbivoreCollisions(herbivores) {
@@ -160,14 +204,19 @@ class Herbivore {
                 const foodIndex = foods.indexOf(this.currentFood);
                 if (foodIndex !== -1) {
                     foods.splice(foodIndex, 1);
-                    // Spawn new food at random position
-                    const newPos = getRandomPosition();
-                    foods.push(new Food(newPos.x, newPos.y));
+                    // Increment pending food spawns
+                    pendingFoodSpawns++;
                 }
                 this.isEating = false;
                 this.currentFood = null;
                 // Recharge energy
                 this.energy = Math.min(this.maxEnergy, this.energy + ENERGY_RECHARGE);
+                // Increment food eaten counter
+                this.foodEaten++;
+                // Check if ready to reproduce
+                if (this.foodEaten >= 3) {
+                    this.canReproduce = true;
+                }
             }
             return;
         }
@@ -191,6 +240,29 @@ class Herbivore {
         }
     }
 
+    checkReproduction(herbivores) {
+        if (this.reproductionCooldown > 0) return;
+
+        for (const otherHerbivore of herbivores) {
+            if (otherHerbivore === this || !otherHerbivore.isAlive || otherHerbivore.reproductionCooldown > 0) continue;
+
+            const distance = calculateDistance(this.x, this.y, otherHerbivore.x, otherHerbivore.y);
+            if (distance < (this.radius + otherHerbivore.radius)) {
+                // Create offspring at midpoint between parents
+                const offspringX = (this.x + otherHerbivore.x) / 2;
+                const offspringY = (this.y + otherHerbivore.y) / 2;
+                const offspringSpeed = (this.speed + otherHerbivore.speed) / 2;
+                const offspring = new Herbivore(offspringX, offspringY, offspringSpeed);
+                herbivores.push(offspring);
+
+                // Set cooldown for both parents
+                this.reproductionCooldown = REPRODUCTION_COOLDOWN;
+                otherHerbivore.reproductionCooldown = REPRODUCTION_COOLDOWN;
+                break;
+            }
+        }
+    }
+
     checkEnergy() {
         if (this.energy <= 0) {
             this.isAlive = false;
@@ -208,8 +280,31 @@ class Herbivore {
     update(foods, herbivores) {
         if (!this.isAlive) return;
 
-        const closestFood = this.findClosestFood(foods);
-        this.moveTowards(closestFood);
+        // Calculate age-based consumption
+        const ageConsumption = BASE_ENERGY_CONSUMPTION * (1 + this.age * AGE_CONSUMPTION_MULTIPLIER) * simulationSpeed;
+        this.energy -= ageConsumption;
+        this.age++; // Increment age
+
+        // Decrease reproduction cooldown
+        if (this.reproductionCooldown > 0) {
+            this.reproductionCooldown -= simulationSpeed;
+        }
+
+        // Always look for closest herbivore first if not on cooldown
+        if (this.reproductionCooldown <= 0) {
+            const closestHerbivore = this.findClosestHerbivore(herbivores);
+            if (closestHerbivore) {
+                this.moveTowards(closestHerbivore);
+            } else {
+                // If no other herbivore found, look for food
+                const closestFood = this.findClosestFood(foods);
+                this.moveTowards(closestFood);
+            }
+        } else {
+            // If on cooldown, just look for food
+            const closestFood = this.findClosestFood(foods);
+            this.moveTowards(closestFood);
+        }
         
         // Apply velocity
         this.x += this.velocityX * simulationSpeed;
@@ -222,6 +317,7 @@ class Herbivore {
         // Check collisions and energy
         this.checkHerbivoreCollisions(herbivores);
         this.checkFoodCollision(foods);
+        this.checkReproduction(herbivores);
         this.checkEnergy();
 
         // Apply friction to slow down herbivores
@@ -232,12 +328,44 @@ class Herbivore {
     draw() {
         if (!this.isAlive) return;
 
+        // Calculate color based on base speed attribute
+        // Map from green (min speed) to red (max speed)
+        const speedRatio = (this.speed - SPEED_RANGE.min) / (SPEED_RANGE.max - SPEED_RANGE.min);
+        const red = Math.floor(255 * speedRatio);
+        const green = Math.floor(255 * (1 - speedRatio));
+        const color = `rgb(${red}, ${green}, 0)`;
+
         // Draw herbivore body
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.isEating ? 'gray' : 'black';
+        ctx.fillStyle = color;
         ctx.fill();
         ctx.closePath();
+
+        // Draw reproduction indicator if ready
+        if (this.reproductionCooldown <= 0) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw a heart symbol to indicate looking for mate
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - this.radius - 8);
+            ctx.bezierCurveTo(
+                this.x - 5, this.y - this.radius - 12,
+                this.x - 8, this.y - this.radius - 4,
+                this.x, this.y - this.radius
+            );
+            ctx.bezierCurveTo(
+                this.x + 8, this.y - this.radius - 4,
+                this.x + 5, this.y - this.radius - 12,
+                this.x, this.y - this.radius - 8
+            );
+            ctx.fillStyle = 'red';
+            ctx.fill();
+        }
 
         // Draw energy bar
         const energyBarWidth = this.radius * 2;
@@ -307,6 +435,26 @@ speedSlider.addEventListener('input', (e) => {
     speedValue.textContent = simulationSpeed.toFixed(1);
 });
 
+foodSpawnSlider.addEventListener('input', (e) => {
+    FOOD_SPAWN_RATE = parseFloat(e.target.value);
+    foodSpawnValue.textContent = FOOD_SPAWN_RATE.toFixed(1);
+});
+
+ageConsumptionSlider.addEventListener('input', (e) => {
+    AGE_CONSUMPTION_MULTIPLIER = parseFloat(e.target.value);
+    ageConsumptionValue.textContent = AGE_CONSUMPTION_MULTIPLIER.toFixed(4);
+});
+
+speedConsumptionSlider.addEventListener('input', (e) => {
+    SPEED_CONSUMPTION_RATE = parseFloat(e.target.value);
+    speedConsumptionValue.textContent = SPEED_CONSUMPTION_RATE.toFixed(2);
+});
+
+reproductionCooldownSlider.addEventListener('input', (e) => {
+    REPRODUCTION_COOLDOWN = parseInt(e.target.value);
+    reproductionCooldownValue.textContent = (REPRODUCTION_COOLDOWN / 60).toFixed(1);
+});
+
 resetButton.addEventListener('click', () => {
     initializeSimulation();
 });
@@ -319,6 +467,15 @@ function animate() {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Check for food spawns
+    const currentTime = Date.now();
+    if (pendingFoodSpawns > 0 && (currentTime - lastFoodSpawnTime) >= (FOOD_SPAWN_RATE * 1000)) {
+        const newPos = getRandomPosition();
+        foods.push(new Food(newPos.x, newPos.y));
+        pendingFoodSpawns--;
+        lastFoodSpawnTime = currentTime;
+    }
+
     // Update and draw all herbivores
     herbivores.forEach(herbivore => {
         herbivore.update(foods, herbivores);
@@ -328,9 +485,74 @@ function animate() {
     // Draw all food
     foods.forEach(food => food.draw());
 
+    // Update stats display if a herbivore is selected
+    if (selectedHerbivore) {
+        updateStatsDisplay();
+    }
+
     // Request next frame
     requestAnimationFrame(animate);
 }
 
 // Start the animation
-animate(); 
+animate();
+
+// Function to show stats for a herbivore
+function showHerbivoreStats(herbivore) {
+    selectedHerbivore = herbivore;
+    updateStatsDisplay();
+    statsWindow.style.display = 'block';
+}
+
+// Function to update stats display
+function updateStatsDisplay() {
+    if (!selectedHerbivore || !selectedHerbivore.isAlive) {
+        hideStatsWindow();
+        return;
+    }
+
+    // Calculate energy expenditure per frame
+    const baseExpenditure = BASE_ENERGY_CONSUMPTION * (1 + selectedHerbivore.age * AGE_CONSUMPTION_MULTIPLIER) * simulationSpeed;
+    const movementExpenditure = selectedHerbivore.speed * SPEED_CONSUMPTION_RATE * simulationSpeed;
+    const totalExpenditure = baseExpenditure + movementExpenditure;
+
+    statsContent.innerHTML = `
+        <h3>Herbivore Stats</h3>
+        <p>Speed: ${selectedHerbivore.speed.toFixed(2)}</p>
+        <p>Age: ${selectedHerbivore.age} frames</p>
+        <p>Energy: ${selectedHerbivore.energy.toFixed(1)}</p>
+        <p>Base Expenditure: -${baseExpenditure.toFixed(2)} per frame</p>
+        <p>Movement Expenditure: -${movementExpenditure.toFixed(2)} per frame</p>
+        <p>Total Expenditure: -${totalExpenditure.toFixed(2)} per frame</p>
+    `;
+}
+
+// Function to hide stats window
+function hideStatsWindow() {
+    statsWindow.style.display = 'none';
+    selectedHerbivore = null;
+}
+
+// Add click event listener to canvas
+canvas.addEventListener('click', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+
+    // Check if click is on any herbivore
+    for (const herbivore of herbivores) {
+        if (!herbivore.isAlive) continue;
+        
+        const distance = calculateDistance(clickX, clickY, herbivore.x, herbivore.y);
+        if (distance <= herbivore.radius) {
+            showHerbivoreStats(herbivore);
+            return;
+        }
+    }
+    
+    // If clicked outside any herbivore, hide stats window
+    hideStatsWindow();
+});
+
+// Add click event listener to close button
+closeStatsButton.addEventListener('click', hideStatsWindow); 

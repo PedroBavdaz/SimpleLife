@@ -1,77 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Agent Simulation</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: white;
-        }
-        canvas {
-            display: block;
-        }
-        #controlPanel {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-            font-family: Arial, sans-serif;
-        }
-        .control-group {
-            margin-bottom: 10px;
-        }
-        .control-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        .control-group input[type="range"] {
-            width: 200px;
-        }
-        .control-group span {
-            display: inline-block;
-            width: 40px;
-            text-align: right;
-            margin-left: 10px;
-        }
-        #resetButton {
-            width: 100%;
-            padding: 8px;
-            background-color: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        #resetButton:hover {
-            background-color: #ff0000;
-        }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: white;
+      }
+      canvas {
+        display: block;
+      }
+      #controlPanel {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        font-family: Arial, sans-serif;
+      }
+      .control-group {
+        margin-bottom: 10px;
+      }
+      .control-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      .control-group input[type="range"] {
+        width: 200px;
+      }
+      .control-group span {
+        display: inline-block;
+        width: 40px;
+        text-align: right;
+        margin-left: 10px;
+      }
+      #resetButton {
+        width: 100%;
+        padding: 8px;
+        background-color: #ff4444;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+      #resetButton:hover {
+        background-color: #ff0000;
+      }
+      #statsWindow {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        min-width: 200px;
+      }
+      .control {
+        margin: 10px 0;
+      }
+      #closeStatsButton {
+        width: 100%;
+        margin-top: 10px;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <canvas id="simulationCanvas"></canvas>
     <div id="controlPanel">
-        <div class="control-group">
-            <label for="herbivoreAmount">Herbivores: <span id="herbivoreAmountValue">5</span></label>
-            <input type="range" id="herbivoreAmount" min="1" max="20" value="5">
-        </div>
-        <div class="control-group">
-            <label for="foodAmount">Food: <span id="foodAmountValue">10</span></label>
-            <input type="range" id="foodAmount" min="1" max="30" value="10">
-        </div>
-        <div class="control-group">
-            <label for="simulationSpeed">Speed: <span id="simulationSpeedValue">1</span>x</label>
-            <input type="range" id="simulationSpeed" min="0.1" max="3" step="0.1" value="1">
-        </div>
-        <button id="resetButton">Reset Simulation</button>
+      <h3>Controls</h3>
+      <div class="control">
+        <label for="herbivoreAmount">Herbivores:</label>
+        <input type="range" id="herbivoreAmount" min="1" max="20" value="5" />
+        <span id="herbivoreAmountValue">5</span>
+      </div>
+      <div class="control">
+        <label for="foodAmount">Food:</label>
+        <input type="range" id="foodAmount" min="1" max="30" value="10" />
+        <span id="foodAmountValue">10</span>
+      </div>
+      <div class="control">
+        <label for="simulationSpeed">Speed:</label>
+        <input
+          type="range"
+          id="simulationSpeed"
+          min="0.1"
+          max="5"
+          step="0.1"
+          value="1"
+        />
+        <span id="simulationSpeedValue">1.0</span>
+      </div>
+      <div class="control">
+        <label for="foodSpawnRate">Food Spawn Rate (s):</label>
+        <input
+          type="range"
+          id="foodSpawnRate"
+          min="0.5"
+          max="10"
+          step="0.5"
+          value="5"
+        />
+        <span id="foodSpawnRateValue">5.0</span>
+      </div>
+      <div class="control">
+        <label for="ageConsumptionRate">Age Effect Rate:</label>
+        <input
+          type="range"
+          id="ageConsumptionRate"
+          min="0.0001"
+          max="0.01"
+          step="0.0001"
+          value="0.001"
+        />
+        <span id="ageConsumptionRateValue">0.0010</span>
+      </div>
+      <div class="control">
+        <label for="speedConsumptionRate">Speed Energy Cost:</label>
+        <input
+          type="range"
+          id="speedConsumptionRate"
+          min="0.01"
+          max="0.5"
+          step="0.01"
+          value="0.1"
+        />
+        <span id="speedConsumptionRateValue">0.10</span>
+      </div>
+      <div class="control">
+        <label for="reproductionCooldown">Breeding Cooldown (seconds):</label>
+        <input
+          type="range"
+          id="reproductionCooldown"
+          min="60"
+          max="600"
+          step="60"
+          value="300"
+        />
+        <span id="reproductionCooldownValue">5.0</span>
+      </div>
+      <button id="resetButton">Reset Simulation</button>
     </div>
+
+    <div id="statsWindow" style="display: none">
+      <div id="statsContent"></div>
+      <button id="closeStatsButton">Close</button>
+    </div>
+
     <script src="script.js"></script>
-</body>
-</html> 
+  </body>
+</html>
